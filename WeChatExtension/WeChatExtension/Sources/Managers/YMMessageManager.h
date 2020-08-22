@@ -19,4 +19,6 @@
 - (void)playVoiceWithMessageData:(MessageData *)msgData;
 
 - (void)asyncRevokeMessage:(MessageData *)revokeMsgData;
+- (NSData *)getCompressImageDataWithImg:(NSImage *)img
+                                   rate:(CGFloat)rate;
 @end

@@ -58,6 +58,7 @@ static int port=52700;
     [self addHandleForSearchUser];
     [self addHandleForOpenSession];
     [self addHandleForSendMsg];
+    [self addHandleForSendImage];
     [self addHandleForSearchUserChatLog];
     [self.webServer startWithOptions:options error:nil];
 }
@@ -297,6 +298,45 @@ static int port=52700;
         
         return [GCDWebServerResponse responseWithStatusCode:404];
     }];
+}
+
+- (void)addHandleForSendImage
+{
+  __weak typeof(self) weakSelf = self;
+
+  [self.webServer addHandlerForMethod:@"POST" path:@"/wechat-plugin/send-image" requestClass:[GCDWebServerURLEncodedFormRequest class] processBlock:^GCDWebServerResponse * _Nullable(__kindof GCDWebServerURLEncodedFormRequest * _Nonnull request) {
+
+    if (![weakSelf isLocalhost:request.headers[@"Host"]]) {
+      return [GCDWebServerResponse responseWithStatusCode:404];
+    }
+
+    NSDictionary *requestBody = [request arguments];
+    NSString *userId = requestBody[@"userId"];
+
+    if (requestBody && userId.length > 0) {
+      NSString *imageBase64 = requestBody[@"imgBase64"];
+      NSString *toUserId = requestBody[@"userId"];
+      NSData *imgData = [[NSData alloc] initWithBase64EncodedString:imageBase64 options:0];
+      NSImage *image = [[NSImage alloc] initWithData:imgData];
+      YMMessageManager *mm = [YMMessageManager shareManager];
+      NSData *thumbData = [mm getCompressImageDataWithImg:image rate:0.07];
+      SendImageInfo *info = [[objc_getClass("SendImageInfo") alloc] init];
+      info.m_uiThumbWidth = 120;
+      info.m_uiThumbHeight = 67;
+      info.m_uiOriginalWidth  = [image size].width;
+      info.m_uiOriginalHeight = [image size].height;
+
+      MessageService *messageService = [[objc_getClass("MMServiceCenter") defaultCenter] getService:objc_getClass("MessageService")];
+      dispatch_async(dispatch_get_main_queue(), ^{
+          NSString *currentUserName = [objc_getClass("CUtility") GetCurrentUserName];
+          [messageService SendImgMessage:currentUserName toUsrName:toUserId thumbImgData:thumbData midImgData:thumbData  imgData:imgData  imgInfo:info];
+          [[YMMessageManager shareManager] clearUnRead:toUserId];
+      });
+      return [GCDWebServerResponse responseWithStatusCode:200];
+    }
+
+    return [GCDWebServerResponse responseWithStatusCode:404];
+  }];
 }
 
 - (NSDictionary *)dictFromGroupSearchResult:(MMComplexGroupContactSearchResult *)result
